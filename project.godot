@@ -27,6 +27,7 @@ project/assembly_name="Magic Drawing Cats - Magical world"
 [physics]
 
 3d/physics_engine="Jolt Physics"
+common/physics_interpolation=true
 
 [rendering]
 

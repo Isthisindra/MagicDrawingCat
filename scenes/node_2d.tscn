@@ -1,10 +1,8 @@
 [gd_scene format=3 uid="uid://brikkibysth4r"]
 
 [ext_resource type="Script" uid="uid://wqd8so55mxfj" path="res://scripts/Recognizer.gd" id="1_4dvvg"]
-[ext_resource type="Script" uid="uid://cvoijq78x1smx" path="res://scripts/DrawingCanvas.gd" id="2_rnjyy"]
 
 [node name="Node2D" type="Node2D" unique_id=933761646]
 script = ExtResource("1_4dvvg")
 
 [node name="Line2D" type="Line2D" parent="." unique_id=462605084]
-script = ExtResource("2_rnjyy")

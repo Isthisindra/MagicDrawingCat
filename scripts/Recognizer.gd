@@ -1,5 +1,8 @@
 extends Node2D
 
+## Sihir Gambar: coretan di layar dikenali (algoritma $1) lalu
+## memanggil skill sesuai bentuknya. Lingkaran = Sihir Api AoE.
+
 # 1. ATUR REQUISITE COMPONENT
 @onready var line_2d: Line2D = get_node_or_null("Line2D") as Line2D
 
@@ -8,6 +11,10 @@ const NUMBER_OF_POINTS = 32
 var current_points: Array[Vector2] = []
 var templates: Dictionary = {}
 var is_drawing: bool = false
+
+const BurnCircleScript := preload("res://scripts/burn_circle.gd")
+
+var _line_fade_tween: Tween
 
 func _ready() -> void:
 	# Kode Pengaman Pembuatan/Pencarian Line2D otomatis
@@ -28,15 +35,28 @@ func _ready() -> void:
 	templates["Huruf V"] = _process_points([Vector2(0,0), Vector2(50,100), Vector2(100,0)])
 	templates["Huruf L"] = _process_points([Vector2(0,0), Vector2(0,100), Vector2(100,100)])
 
+	# Template 4: Lingkaran (lingkaran penuh tertutup), untuk Sihir Api AoE.
+	var circle_pts: Array[Vector2] = []
+	for i in range(32):
+		var angle := TAU * i / 32.0
+		circle_pts.append(Vector2(cos(angle), sin(angle)) * 50.0)
+	circle_pts.append(circle_pts[0])  # tutup lingkaran, kembali ke titik awal
+	templates["Lingkaran"] = _process_points(circle_pts)
+
 func _input(event: InputEvent) -> void:
 	# Deteksi Klik Kiri / Sentuhan Layar
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			is_drawing = true
+			# Kalau fade-garis lama masih jalan, hentikan dan reset opacity.
+			if _line_fade_tween and _line_fade_tween.is_running():
+				_line_fade_tween.kill()
+			line_2d.modulate.a = 1.0
 			current_points.clear()
 			line_2d.points = []
-			current_points.append(event.position)
-			line_2d.add_point(event.position)
+			var world_pos: Vector2 = get_canvas_transform().affine_inverse() * event.position
+			current_points.append(world_pos)
+			line_2d.add_point(world_pos)
 		else:
 			is_drawing = false
 			var shape_name = _evaluate_drawing() # Mengevaluasi dan mendapatkan nama bentuk
@@ -44,45 +64,137 @@ func _input(event: InputEvent) -> void:
 
 	# Deteksi Gerakan Mouse saat Menggambar
 	elif event is InputEventMouseMotion and is_drawing:
-		if current_points.is_empty() or current_points.back().distance_to(event.position) > 10.0:
-			current_points.append(event.position)
-			line_2d.add_point(event.position)
+		if current_points.is_empty() or current_points.back().distance_to(get_canvas_transform().affine_inverse() * event.position) > 10.0:
+			var world_pos: Vector2 = get_canvas_transform().affine_inverse() * event.position
+			current_points.append(world_pos)
+			line_2d.add_point(world_pos)
 
-# 3. FUNGSI EVALUASI DRAWING (MENGEMBALIKAN STRING KE CONSOLE)
+# 3. FUNGSI EVALUASI DRAWING
 func _evaluate_drawing() -> String:
 	if current_points.size() < 5:
 		print("Coretan terlalu pendek/singkat!")
 		return "Too Short"
-		
+
+	# PRIORITAS 1: Deteksi lingkaran pakai geometri (bukan $1),
+	# karena $1 sensitif terhadap titik mulai coretan pada lingkaran.
+	var circle_score := _circle_score(current_points)
+	if circle_score >= 0.75:
+		print("Bentuk Dikenali: Lingkaran (Kebulatan: ", snapped(circle_score * 100, 0.1), "%)")
+		_trigger_game_action("Lingkaran")
+		return "Lingkaran"
+
+	# PRIORITAS 2: Algoritma $1 untuk bentuk lain (V, L, garis, dll).
 	var result = _recognize(current_points, templates)
-	var threshold = 0.80 # Batas minimal kemiripan (80%)
-	
+	var threshold = 0.70 # Diturunkan dari 0.80 agar lebih pemaaf
+
 	if result["score"] >= threshold:
 		var nama_bentuk = result["name"]
 		print("Bentuk Dikenali: ", nama_bentuk, " (Kemiripan: ", snapped(result["score"] * 100, 0.1), "%)")
-		
-		# Pemicu aksi teks console
 		_trigger_game_action(nama_bentuk)
-		
 		return nama_bentuk
 	else:
 		print("Sihir Gagal! Bentuk tidak jelas. Terdekat: ", result["name"], " (Skor: ", snapped(result["score"] * 100, 0.1), "%)")
 		return "Unknown"
 
-# 4. FUNGSI PEMICU GAME ACTION (CUKUP PRINT KATA DI CONSOLE)
+
+## Skor "seberapa lingkaran" suatu coretan (0.0 - 1.0):
+## gabungan dari (a) konsistensi jari-jari ke centroid,
+## (b) kebulatan area vs keliling, (c) coretannya menutup.
+func _circle_score(points: Array[Vector2]) -> float:
+	var length := _path_length(points)
+	if length < 100.0:
+		return 0.0
+	if points.size() < 8:
+		return 0.0
+
+	# (a) Konsistensi jari-jari: jarak tiap titik ke centroid harus seragam.
+	var center := _centroid(points)
+	var radii: Array[float] = []
+	for p in points:
+		radii.append(p.distance_to(center))
+	var r_avg := 0.0
+	for r in radii:
+		r_avg += r
+	r_avg /= radii.size()
+	if r_avg < 30.0:
+		return 0.0
+	var r_dev := 0.0
+	for r in radii:
+		r_dev += (r - r_avg) * (r - r_avg)
+	r_dev = sqrt(r_dev / radii.size())
+	var radial_consistency := clampf(1.0 - (r_dev / r_avg), 0.0, 1.0)
+
+	# (b) Kebulatan: 4*PI*area / keliling^2, lingkaran sempurna = 1.0.
+	var area := 0.0
+	for i in range(points.size()):
+		var j := (i + 1) % points.size()
+		area += points[i].x * points[j].y - points[j].x * points[i].y
+	area = absf(area) * 0.5
+	var circularity := clampf(4.0 * PI * area / (length * length), 0.0, 1.0)
+
+	# (c) Ketertutupan: ujung awal dan akhir coretan harus bertemu.
+	var closure := 1.0 - clampf(points[0].distance_to(points[points.size() - 1]) / (length * 0.35), 0.0, 1.0)
+
+	return radial_consistency * 0.45 + circularity * 0.35 + closure * 0.20
+
+# 4. FUNGSI PEMICU GAME ACTION (SPAWN SKILL SESUAI BENTUK)
 func _trigger_game_action(bentuk: String) -> void:
 	match bentuk:
 		"Garis Horizontal":
 			print("AKSI: Menembakkan Fireball lurus ke depan!")
-			
+
 		"Huruf V":
 			print("AKSI: Memanggil Petir (Lightning Strike) dari langit!")
-			
+
 		"Huruf L":
 			print("AKSI: Membuat Dinding Pelindung (Magic Wall)!")
-			
+
+		"Lingkaran":
+			# Sihir Api: lingkaran api muncul tepat di tempat coretan,
+			# ukuran mengikuti ukuran coretan.
+			_spawn_fire_circle()
+			print("AKSI: Sihir Api terpanggil di area coretan!")
+
 		_:
 			print("AKSI: Bentuk terdaftar tapi belum memiliki logika aksi.")
+
+
+func _spawn_fire_circle() -> void:
+	# Titik tengah coretan = pusat lingkaran api.
+	var center := _centroid(current_points)
+
+	# Jari-jari coretan = jarak terjauh dari titik ke pusatnya.
+	var radius := 0.0
+	for p in current_points:
+		var d := p.distance_to(center)
+		if d > radius:
+			radius = d
+
+	# Batasi ukuran biar wajar di layar.
+	radius = clampf(radius, 80.0, 400.0)
+
+	var world := get_tree().current_scene
+	var circle := Area2D.new()
+	circle.set_script(BurnCircleScript)
+	circle.global_position = center
+	circle.set("radius", radius)
+	circle.name = "BurnCircle"
+	world.add_child(circle)
+
+	# Garis sihir (coretan) tetap nampak sampai skill berakhir,
+	# lalu memudar perlahan. Kill tween fade lama biar coretan baru
+	# nggak ikut ke-fade.
+	var spell_life: float = circle.get("lifetime")
+	if _line_fade_tween and _line_fade_tween.is_running():
+		_line_fade_tween.kill()
+	var fade := create_tween()
+	_line_fade_tween = fade
+	fade.tween_interval(spell_life)
+	fade.tween_property(line_2d, "modulate:a", 0.0, 0.5)
+	fade.tween_callback(func() -> void:
+		line_2d.points = []
+		line_2d.modulate.a = 1.0
+	)
 
 # =========================================================================
 # INTERNAL ALGORITMA ($1 RECOGNIZER) - JANGAN DIUBAH
