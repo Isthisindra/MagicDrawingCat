@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://cmy8ykif8pprf"]
 
 [ext_resource type="Script" uid="uid://degk7esi21ui2" path="res://scripts/character_body_2d.gd" id="1_g2brh"]
-[ext_resource type="Script" path="res://scripts/fire_circle_skill.gd" id="2_fcskill"]
+[ext_resource type="Script" uid="uid://dsvqwavc1veih" path="res://scripts/fire_circle_skill.gd" id="2_fcskill"]
 [ext_resource type="Texture2D" uid="uid://yew5pg0mlwdi" path="res://assets/Spritesheets/Front - Idle.png" id="2_g2brh"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_dn4c7"]
@@ -145,7 +145,7 @@ limit_smoothed = true
 position_smoothing_enabled = true
 position_smoothing_speed = 20.0
 
-[node name="FireCircleSkill" type="Node2D" parent="."]
+[node name="FireCircleSkill" type="Node2D" parent="." unique_id=1842024369]
 script = ExtResource("2_fcskill")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1626790813]

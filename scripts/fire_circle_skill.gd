@@ -8,7 +8,7 @@ extends Node2D
 ## Aksi input yang memicu skill.
 @export var action := "ui_accept"
 
-const BurnCircleScript := preload("res://scripts/burn_circle.gd")
+const FireSkillScene := preload("res://scenes/fireskill.tscn")
 
 var _cooldown_left := 0.0
 
@@ -25,8 +25,7 @@ func _cast() -> void:
 	# Parent ke dunia (bukan player) supaya lingkaran diam di tempat saat di-cast.
 	var world := get_tree().current_scene
 
-	var circle := Area2D.new()
-	circle.set_script(BurnCircleScript)
+	var circle := FireSkillScene.instantiate()
 	circle.global_position = global_position
-	circle.name = "BurnCircle"
+	circle.name = "FireSkill"
 	world.add_child(circle)

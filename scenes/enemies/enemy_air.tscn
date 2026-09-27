@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" uid="uid://e5rkl32oxx02" path="res://scenes/enemy.tscn" id="1_base"]
+
+[node name="EnemyAir" instance=ExtResource("1_base")]
+element = 0
+random_element = false
+modulate = Color(0.7, 0.85, 1, 1)

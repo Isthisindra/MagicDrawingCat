@@ -12,7 +12,7 @@ var current_points: Array[Vector2] = []
 var templates: Dictionary = {}
 var is_drawing: bool = false
 
-const BurnCircleScript := preload("res://scripts/burn_circle.gd")
+const FireSkillScene := preload("res://scenes/fireskill.tscn")
 
 var _line_fade_tween: Tween
 
@@ -174,11 +174,11 @@ func _spawn_fire_circle() -> void:
 	radius = clampf(radius, 80.0, 400.0)
 
 	var world := get_tree().current_scene
-	var circle := Area2D.new()
-	circle.set_script(BurnCircleScript)
+	var circle := FireSkillScene.instantiate()
 	circle.global_position = center
+	# Ukuran area ikut coretan lu (di-clamp di _spawn_fire_circle).
 	circle.set("radius", radius)
-	circle.name = "BurnCircle"
+	circle.name = "FireSkill"
 	world.add_child(circle)
 
 	# Garis sihir (coretan) tetap nampak sampai skill berakhir,

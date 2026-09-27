@@ -5,6 +5,10 @@ extends CharacterBody2D
 @export var speed := 1000.0
 ## 1.0 = langsung penuh kecepatan, lebih kecil = akselerasi halus.
 @export var acceleration := 2.0
+## Mana yang bisa dipakai untuk skill sihir.
+@export var max_mana := 100.0
+
+var mana: float
 
 @onready var sprite: Node2D = get_node_or_null("AnimatedSprite2D") if get_node_or_null("AnimatedSprite2D") else get_node_or_null("Sprite2D")
 @onready var camera: Camera2D = get_node_or_null("Camera2D")
@@ -22,6 +26,20 @@ func _ready() -> void:
 	set_physics_interpolation_mode(Node.PHYSICS_INTERPOLATION_MODE_ON)
 	if camera:
 		camera.reset_smoothing()
+
+	mana = max_mana
+	add_to_group("player")  # Spoenemy/ Orb cari player lewat group ini
+
+	# Layer 4 = player. Musuh (layer 2) mask 1, jadi nggak collision
+	# dengan player -> enemy bisa nembus player.
+	collision_layer = 4
+	collision_mask = 1
+
+
+## Dipanggil orb mana yg di-drop musuh.
+func collect_orb(amount: float) -> void:
+	mana = minf(mana + amount, max_mana)
+	print("Mana +", snapped(amount, 0.1), " -> ", snapped(mana, 0.1), "/", max_mana)
 
 
 func _physics_process(delta: float) -> void:
